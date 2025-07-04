@@ -27,8 +27,15 @@ class MathField extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.opensKeyboard = true,
-  });
+    this.inputColor,
+    this.textAlign = TextAlign.start,
+    this.customCursorColor = Colors.black,
+    this.mathField,
+    this.cursorOpacity = 1.0,
+  }) : super(key: key);
 
+  final Color? inputColor;
+  final TextAlign textAlign;
   /// The controller for the math field.
   ///
   /// This can be optionally passed in order to control a math field from the
@@ -116,6 +123,14 @@ class MathField extends StatefulWidget {
   /// Defaults to `true`.
   final bool opensKeyboard;
 
+  /// The color of the cursor.
+  final Color customCursorColor;
+
+  /// The math field to display.
+  final MathField? mathField;
+
+  final double? cursorOpacity;
+
   @override
   _MathFieldState createState() => _MathFieldState();
 }
@@ -134,7 +149,7 @@ class _MathFieldState extends State<MathField> with TickerProviderStateMixin {
     // is greater than 1/2.
     value: 1 / 2,
   );
-  late var _cursorOpacity = 0.0;
+  late var _cursorOpacity = widget.cursorOpacity;
 
   OverlayEntry? _overlayEntry;
   late var _focusNode = widget.focusNode ??
@@ -256,11 +271,13 @@ class _MathFieldState extends State<MathField> with TickerProviderStateMixin {
     // cursor is all the way to the right.
     if (_controller.root.cursorAtTheEnd()) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.fastOutSlowIn,
-        );
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 100),
+            curve: Curves.fastOutSlowIn,
+          );
+        }
       });
     }
 
@@ -326,9 +343,15 @@ class _MathFieldState extends State<MathField> with TickerProviderStateMixin {
           context: this.context,
           locale: Localizations.localeOf(this.context),
           child: MathKeyboard(
+            mathField: widget.mathField,
             controller: _controller,
             type: widget.keyboardType,
             variables: _variables,
+            submitColor: Color(0xFF11F0A9),
+            highlightColor: Color(0xFFCCCCCC),
+            buttonColor: Colors.white,
+            backgroundColor: Color(0xFFEEEEEE),
+            iconColor: Colors.black,
             onSubmit: _submit,
             // Note that we need to pass the insets state like this because the
             // overlay context does not have the ancestor state.
@@ -375,6 +398,10 @@ class _MathFieldState extends State<MathField> with TickerProviderStateMixin {
         ...functionKeyboard,
       ] else if (widget.keyboardType == MathKeyboardType.numberOnly) ...[
         ...numberKeyboard,
+          ] else if (widget.keyboardType ==
+              MathKeyboardType.coachOnKeyboard1) ...[
+            ...numberKeyboard,
+            ...coachOnKeyboard1,
       ],
     ].fold<List<KeyboardButtonConfig>>([], (previousValue, element) {
       return previousValue..addAll(element);
@@ -514,12 +541,17 @@ class _MathFieldState extends State<MathField> with TickerProviderStateMixin {
               animation: _controller,
               builder: (context, child) {
                 return _FieldPreview(
+                  inputColor:
+                      widget.inputColor ??
+                      Theme.of(context).colorScheme.onSurface,
+                  customCursorColor: widget.customCursorColor,
                   controller: _controller,
                   scrollController: _scrollController,
-                  cursorOpacity: _cursorOpacity,
+                  cursorOpacity: _cursorOpacity ?? 1.0,
                   hasFocus: _focusNode.hasFocus,
                   decoration: widget.decoration
                       .applyDefaults(Theme.of(context).inputDecorationTheme),
+                  textAlign: widget.textAlign,
                 );
               },
             ),
@@ -536,11 +568,17 @@ class _FieldPreview extends StatelessWidget {
   const _FieldPreview({
     Key? key,
     required this.controller,
+    this.customCursorColor = Colors.black,
     required this.cursorOpacity,
     required this.hasFocus,
     required this.decoration,
     required this.scrollController,
+    required this.inputColor,
+    this.textAlign = TextAlign.start,
   }) : super(key: key);
+
+  /// The color of the input.
+  final Color inputColor;
 
   /// The controller for the math field.
   final MathFieldEditingController controller;
@@ -557,6 +595,11 @@ class _FieldPreview extends StatelessWidget {
 
   /// The decoration to show around the text field.
   final InputDecoration decoration;
+
+  /// The color of the cursor.
+  final Color customCursorColor;
+
+  final TextAlign textAlign;
 
   // Adapted from InputDecorator._getFillColor.
   Color _getDisabledCursorColor(ThemeData themeData) {
@@ -603,9 +646,9 @@ class _FieldPreview extends StatelessWidget {
     final tex = controller.root
         .buildTeXString(
           cursorColor: Color.lerp(
-            _getDisabledCursorColor(Theme.of(context)),
-            Theme.of(context).textSelectionTheme.cursorColor ??
-                Theme.of(context).colorScheme.secondary,
+            Colors
+                .white, // 비활성 커서 색상 흰색으로 고정 //  _getDisabledCursorColor(Theme.of(context)),
+            customCursorColor,
             cursorOpacity,
           ),
         )
@@ -633,10 +676,15 @@ class _FieldPreview extends StatelessWidget {
         isEmpty: false,
         isFocused: hasFocus,
         decoration: decoration,
-        child: SingleChildScrollView(
-          controller: scrollController,
-          scrollDirection: Axis.horizontal,
+        child: Container(
+          width: MediaQuery.of(context).size.width - 32,
+          alignment: textAlign == TextAlign.center
+              ? Alignment.center
+              : textAlign == TextAlign.end
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
           child: Stack(
+            alignment: Alignment.center,
             children: [
               Transform.translate(
                 offset: !controller.isEmpty
@@ -648,8 +696,7 @@ class _FieldPreview extends StatelessWidget {
                 child: Math.tex(
                   tex,
                   options: MathOptions(
-                    fontSize: MathOptions.defaultFontSize,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 16, color: inputColor,
                   ),
                 ),
               ),
