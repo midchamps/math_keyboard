@@ -32,7 +32,7 @@ class MathField extends StatefulWidget {
     this.customCursorColor = Colors.black,
     this.mathField,
     this.cursorOpacity = 1.0,
-  }) : super(key: key);
+  });
 
   final Color? inputColor;
   final TextAlign textAlign;
